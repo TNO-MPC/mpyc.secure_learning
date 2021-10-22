@@ -1,0 +1,3 @@
+"""
+Initialization of the tests
+"""
