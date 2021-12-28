@@ -169,5 +169,5 @@ class GridCV:
             (statistics.mean(result), self._param_grid[index])
             for index, result in enumerate(self._results)
         ]
-        avg.sort(reverse=True)
+        avg = sorted(avg, key=lambda x: (x[0]))
         return avg

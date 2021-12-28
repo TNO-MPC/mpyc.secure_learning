@@ -2,14 +2,21 @@
 Contains utils for matrices and vectors such as transposing and
 secure signing
 """
-from typing import TypeVar, Union, cast, overload
+from typing import Sequence, TypeVar, Union, cast, overload
 
+import mpyc.random
 from mpyc.runtime import mpc
 from mpyc.sectypes import SecureFixedPoint, SecureObject
 
 from tno.mpc.mpyc.stubs.asyncoro import mpc_coro_ignore, returnType
 
-from tno.mpc.mpyc.secure_learning.utils.types import Matrix, SecNumTypesTV, Vector
+from tno.mpc.mpyc.secure_learning.utils.types import (
+    Matrix,
+    SecNumTypesTV,
+    SeqMatrix,
+    Vector,
+    seq_to_list,
+)
 
 AnyTV = TypeVar("AnyTV")
 
@@ -135,6 +142,33 @@ def scale_vector_or_matrix(factor: float, x: Vector[AnyTV]) -> Vector[AnyTV]:
     if isinstance(x[0], list):
         return cast(Vector[AnyTV], [scale_vector_or_matrix(factor, _) for _ in x])
     return [factor * _ for _ in x]
+
+
+def permute_matrix(matrix: SeqMatrix[SecNumTypesTV]) -> Matrix[SecNumTypesTV]:
+    """
+    Permute matrix randomly.
+
+    :param matrix: Matrix to be permuted
+    :raise TypeError: Input is not a matrix
+    :return: Permutated matrix
+    """
+    if not isinstance(matrix[0], Sequence):
+        raise TypeError("Input is not a matrix.")
+
+    matrix = seq_to_list(matrix)
+
+    stype = type(matrix[0][0])
+    rows = len(matrix)
+    # Knuth shuffling on vectors
+    for row in range(rows - 1):  # Knuth shuffling
+        y_r = mpyc.random.random_unit_vector(stype, rows - row)
+        X_r = mpc.matrix_prod([y_r], matrix[row:])[0]
+        # X_r = matr_sum((mpc_utils.mult_scalar_mul(y_r, X[row:], tr=True))
+        d_r = mpc.matrix_prod([[v] for v in y_r], [mpc.vector_sub(matrix[row], X_r)])
+        matrix[row] = X_r
+        for _ in range(rows - row):
+            matrix[row + _] = mpc.vector_add(matrix[row + _], d_r[_])
+    return matrix
 
 
 @mpc_coro_ignore

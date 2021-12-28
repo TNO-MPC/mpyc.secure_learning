@@ -201,7 +201,7 @@ class Logistic(Model):
         X_times_w = mpc_utils.mat_vec_mult(X, weights)
         X_times_w = [x * (-1) for x in X_times_w]
 
-        result = secure_pow(math.e, X_times_w, trunc_to_domain=True)
+        result = secure_pow(math.e, X_times_w, trunc_to_domain=True, bits_buffer=1)
         new_results = [1 / (1 + r) for r in result]
         # Map predicted {0, 1}-labels to {-1, +1}
         return [2 * val - 1 for val in new_results]

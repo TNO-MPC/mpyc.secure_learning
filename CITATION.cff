@@ -18,6 +18,6 @@ contact:
 repository-code: https://github.com/TNO-MPC/mpyc.secure_learning
 repository-artifact: https://pypi.org/project/tno.mpc.mpyc.secure_learning
 title: TNO MPC Lab - MPyC - Secure Learning
-version: v0.1.2
-date-released: 2021-10-22
+version: v0.2.3
+date-released: 2021-12-28
 

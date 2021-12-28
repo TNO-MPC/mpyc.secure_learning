@@ -8,8 +8,8 @@ import numpy as np
 from mpyc.runtime import mpc
 
 from tno.mpc.mpyc.secure_learning.exceptions import SecureLearnValueError
-from tno.mpc.mpyc.secure_learning.utils.random import permute_matrix
 from tno.mpc.mpyc.secure_learning.utils.types import Matrix, SecNumTypesTV, SeqMatrix
+from tno.mpc.mpyc.secure_learning.utils.util_matrix_vec import permute_matrix
 
 
 class SecureDataPermutator:

@@ -14,9 +14,10 @@ LANCELOT is partly funded by PPS-surcharge for Research and Innovation of the Du
 
 The secure lasso regression model has been developed in the BigMedilytics project. This project has received funding from the European Union’s Horizon 2020 research and innovation program under Grant Agreement No. 780495.
 
-In collaboration with the MPC Lab, BigMedilytics, LANCELOT and [Appl.AI](https://www.tno.nl/en/focus-areas/artificial-intelligence/), contributed to a restructuring of the codebase to ensure a generic reusable library which can be expanded with other models and functionalities.
+In collaboration with the MPC Lab, BigMedilytics, LANCELOT, [NLAIC](https://nlaic.com/en/about-nl-aic/) and [Appl.AI](https://www.tno.nl/en/focus-areas/artificial-intelligence/), contributed to a restructuring of the codebase to ensure a generic reusable library which can be expanded with other models and functionalities.
 
-*Limitations in (end-)use: the content of this software package may solely be used for applications that comply with international export control laws.*
+*Limitations in (end-)use: the content of this software package may solely be used for applications that comply with international export control laws.*  
+*This implementation of cryptographic software has not been audited. Use at your own risk.*
 
 ## Content Explanation
 
@@ -43,7 +44,7 @@ Currently, no code is provided to securely apply the trained models.
 
 ## Documentation
 
-Documentation of the tno.mpc.mpyc.secure_learning package can be found [here](https://docs.mpc.tno.nl/mpyc/secure_learning/0.1.2).
+Documentation of the tno.mpc.mpyc.secure_learning package can be found [here](https://docs.mpc.tno.nl/mpyc/secure_learning/0.2.3).
 
 ## Install
 
