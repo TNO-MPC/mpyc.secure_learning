@@ -56,7 +56,7 @@ class Linear(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[False],
     ) -> Vector[SecureFixedPoint]:
         ...
@@ -66,7 +66,7 @@ class Linear(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[True],
     ) -> List[Vector[SecureFixedPoint]]:
         ...
@@ -76,7 +76,7 @@ class Linear(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
         ...
@@ -85,7 +85,7 @@ class Linear(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Matrix[SecureFixedPoint], Vector[SecureFixedPoint]]:
         """
@@ -93,7 +93,7 @@ class Linear(Model):
 
         :param X: Independent variables
         :param y: Dependent variables
-        :param weights: Current weights vector
+        :param coef_: Current coefficients vector
         :param grad_per_sample: Return a list with gradient per sample
             instead of aggregated (summed) gradient
         :return: Gradient of objective function as specified in class
@@ -102,7 +102,7 @@ class Linear(Model):
         uncorrected_weighted_differences_gradient = self.weighted_differences_gradient(
             X,
             y,
-            weights,
+            coef_,
             grad_per_sample=grad_per_sample,
         )
         return mpc_utils.scale_vector_or_matrix(
@@ -113,49 +113,49 @@ class Linear(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Union[Vector[float], Vector[SecureFixedPoint]],
+        coef_: Union[Vector[float], Vector[SecureFixedPoint]],
     ) -> SecureFixedPoint:
         """
         Compute the coefficient of determination $R^2$ of the prediction.
 
         :param X: Test data.
         :param y: True value for $X$.
-        :param weights: Weight vector.
+        :param coef_: Coefficient vector.
         :return: Score of the model prediction.
         """
-        predicted_y = self.predict(X, weights)
+        predicted_y = self.predict(X, coef_)
         return sec_metrics.r2_score(y, predicted_y)
 
     @staticmethod
     def _predictive_func(
-        X: Matrix[SecureFixedPoint], weights: Vector[SecureFixedPoint]
+        X: Matrix[SecureFixedPoint], coef_: Vector[SecureFixedPoint]
     ) -> Vector[SecureFixedPoint]:
         """
         Compute matrix multiplication on matrix $X$ and vector $y$.
 
         :param X: Independent variables
-        :param weights: Current weights vector
-        :return: Multiplication of $X$ and weights
+        :param coef_: Current coefficients vector
+        :return: Multiplication of $X$ and coefficients
         """
-        return mpc_utils.mat_vec_mult(X, weights)
+        return mpc_utils.mat_vec_mult(X, coef_)
 
     @staticmethod
     def predict(
         X: Matrix[SecureFixedPoint],
-        weights: Union[Vector[float], Vector[SecureFixedPoint]],
+        coef_: Union[Vector[float], Vector[SecureFixedPoint]],
         **_kwargs: None,
     ) -> Vector[SecureFixedPoint]:
         """
         Predicts target values for input data to regression model.
 
         :param X: Input data with all features
-        :param weights: Weight vector of regression model
+        :param coef_: Coefficient vector of regression model
         :param _kwargs: Not used
         :return: Target values of regression model
         """
         stype = type(X[0][0])
-        if not isinstance(weights[0], stype):
-            weights = [stype(_) for _ in weights]
-        if len(X[0]) == len(weights):
-            return mpc_utils.mat_vec_mult(X, weights)
-        return [xw + weights[0] for xw in mpc_utils.mat_vec_mult(X, weights[1:])]
+        if not isinstance(coef_[0], stype):
+            coef_ = [stype(_) for _ in coef_]
+        if len(X[0]) == len(coef_):
+            return mpc_utils.mat_vec_mult(X, coef_)
+        return [xw + coef_[0] for xw in mpc_utils.mat_vec_mult(X, coef_[1:])]

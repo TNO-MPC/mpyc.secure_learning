@@ -12,10 +12,10 @@ from tno.mpc.mpyc.secure_learning.utils.types import (
     seq_to_list,
 )
 
-T = TypeVar("T")
+TemplateType = TypeVar("TemplateType")
 
 
-class MatrixAugmenter(SeqMatrix[T]):
+class MatrixAugmenter(SeqMatrix[TemplateType]):
     """
     Representation of an augmented matrix build from multiple sequence-of-
     sequences matrices.
@@ -32,19 +32,19 @@ class MatrixAugmenter(SeqMatrix[T]):
         """
         Constructor method.
         """
-        self._matrices: Dict[str, Matrix[T]] = OrderedDict()
+        self._matrices: Dict[str, Matrix[TemplateType]] = OrderedDict()
 
     @overload
-    def __getitem__(self, index: int) -> Vector[T]:
+    def __getitem__(self, index: int) -> Vector[TemplateType]:
         ...
 
     @overload
-    def __getitem__(self, index: slice) -> "MatrixAugmenter[T]":
+    def __getitem__(self, index: slice) -> "MatrixAugmenter[TemplateType]":
         ...
 
     def __getitem__(
         self, index: Union[int, slice]
-    ) -> Union[Vector[T], "MatrixAugmenter[T]"]:
+    ) -> Union[Vector[TemplateType], "MatrixAugmenter[TemplateType]"]:
         """
         Get a row of the augmented matrix.
 
@@ -55,11 +55,11 @@ class MatrixAugmenter(SeqMatrix[T]):
             return list(
                 chain.from_iterable(matrix[index] for matrix in self._matrices.values())
             )
-        ma: MatrixAugmenter[T] = MatrixAugmenter()
-        ma._matrices = self._matrices.copy()
-        for key, val in ma._matrices.items():
-            ma._matrices[key] = val[index]
-        return ma
+        matrix_augmenter: "MatrixAugmenter[TemplateType]" = MatrixAugmenter()
+        matrix_augmenter._matrices = self._matrices.copy()
+        for key, val in matrix_augmenter._matrices.items():
+            matrix_augmenter._matrices[key] = val[index]
+        return matrix_augmenter
 
     def __len__(self) -> int:
         """
@@ -91,7 +91,7 @@ class MatrixAugmenter(SeqMatrix[T]):
 
         :return: Number of rows and columns
         """
-        return (len(self), sum(len(matrix[0]) for matrix in self._matrices.values()))
+        return len(self), sum(len(matrix[0]) for matrix in self._matrices.values())
 
     def keys(self) -> Any:
         """
@@ -104,7 +104,7 @@ class MatrixAugmenter(SeqMatrix[T]):
         return self._matrices.keys()
 
     @staticmethod
-    def _validate_matrix_format(matrix: SeqMatrix[T]) -> None:
+    def _validate_matrix_format(matrix: SeqMatrix[TemplateType]) -> None:
         """
         Validates that the provided object is a sequence of sequences.
 
@@ -122,11 +122,11 @@ class MatrixAugmenter(SeqMatrix[T]):
                     but received sequence of {type(matrix[0])}."
             )
 
-    def augment(self, key: str, matrix: SeqMatrix[T]) -> None:
+    def augment(self, key: str, matrix: SeqMatrix[TemplateType]) -> None:
         """
         Augments a new matrix to the existing augmented matrix.
 
-        :param key: Key used for storing and retreiving the new matrix
+        :param key: Key used for storing and retrieving the new matrix
         :param matrix: Matrix to be augmented
         :raise KeyError: Key already in use
         """
@@ -134,11 +134,11 @@ class MatrixAugmenter(SeqMatrix[T]):
             raise KeyError("Key already in use")
         self._update_key(key, matrix)
 
-    def update_key(self, key: str, matrix: SeqMatrix[T]) -> None:
+    def update_key(self, key: str, matrix: SeqMatrix[TemplateType]) -> None:
         """
         Updates an existing matrix in the augmented matrix.
 
-        :param key: Key for retreiving the existing matrix
+        :param key: Key for retrieving the existing matrix
         :param matrix: New values for matrix
         :raise KeyError: Key not in use
         """
@@ -146,11 +146,11 @@ class MatrixAugmenter(SeqMatrix[T]):
             raise KeyError("Unknown key provided")
         self._update_key(key, matrix)
 
-    def _update_key(self, key: str, matrix: SeqMatrix[T]) -> None:
+    def _update_key(self, key: str, matrix: SeqMatrix[TemplateType]) -> None:
         """
         Stores or updates a matrix in the matrix dictionary.
 
-        :param key: Key for storing or retreiving the existing matrix
+        :param key: Key for storing or retrieving the existing matrix
         :param matrix: New values for matrix
         :raise ValueError: Matrix dimensions inconsistent with existing
             augmented matrix
@@ -164,7 +164,7 @@ class MatrixAugmenter(SeqMatrix[T]):
             )
         self._matrices[key] = seq_to_list(matrix)
 
-    def update(self, matrix: SeqMatrix[T]) -> None:
+    def update(self, matrix: SeqMatrix[TemplateType]) -> None:
         """
         Update augmented matrix in its entirety.
 
@@ -188,11 +188,11 @@ class MatrixAugmenter(SeqMatrix[T]):
             )
             offset += submat_col_length
 
-    def retrieve(self, key: str) -> Matrix[T]:
+    def retrieve(self, key: str) -> Matrix[TemplateType]:
         """
         Retrieve individual matrix.
 
-        :param key: Key for retreiving the matrix
+        :param key: Key for retrieving the matrix
         :return: Requested matrix
         """
         return self._matrices[key]

@@ -44,7 +44,7 @@ Currently, no code is provided to securely apply the trained models.
 
 ## Documentation
 
-Documentation of the tno.mpc.mpyc.secure_learning package can be found [here](https://docs.mpc.tno.nl/mpyc/secure_learning/0.2.3).
+Documentation of the tno.mpc.mpyc.secure_learning package can be found [here](https://docs.mpc.tno.nl/mpyc/secure_learning/1.1.1).
 
 ## Install
 
@@ -73,6 +73,7 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 <details>
 <summary><b>Click here for an example of securely training a simple linear regression model with L2 penalty (Ridge).</b></summary>
 
+
 > `example.py`
 > ```python
 > import numpy as np
@@ -81,11 +82,7 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 > from sklearn.linear_model import Ridge as RidgeSK
 > 
 > import tno.mpc.mpyc.secure_learning.test.plaintext_utils.plaintext_objective_functions as plain_obj
-> from tno.mpc.mpyc.secure_learning import (
->     PenaltyTypes,
->     Ridge,
->     SolverTypes,
-> )
+> from tno.mpc.mpyc.secure_learning import PenaltyTypes, Ridge, SolverTypes
 > 
 > # Notice that we use the entire dataset to train the model
 > n_samples = 50
@@ -130,15 +127,15 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 >     # Train secure model
 >     model = Ridge(solver_type=SolverTypes.GD, alpha=alpha)
 >     async with mpc:
->         weights = await model.compute_weights_mpc(
+>         coef_ = await model.compute_coef_mpc(
 >             X_shared,
 >             y_shared,
 >             tolerance=tolerance,
 >         )
 > 
 >     # Results of secure model
->     objective = plain_obj.objective(X, y, weights, "linear", PenaltyTypes.L2, alpha)
->     print("Securely obtained coefficients:", weights)
+>     objective = plain_obj.objective(X, y, coef_, "linear", PenaltyTypes.L2, alpha)
+>     print("Securely obtained coefficients:", coef_)
 >     print("* objective:", objective)
 > 
 >     # Train plaintext model
@@ -151,11 +148,9 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 >     model_sk.fit(X, y)
 > 
 >     # Results of plaintext model
->     weights_sk = np.append([model_sk.intercept_], model_sk.coef_).tolist()
->     objective_sk = plain_obj.objective(
->         X, y, weights_sk, "linear", PenaltyTypes.L2, alpha
->     )
->     print("Sklearn obtained coefficients: ", weights_sk)
+>     coef_sk = np.append([model_sk.intercept_], model_sk.coef_).tolist()
+>     objective_sk = plain_obj.objective(X, y, coef_sk, "linear", PenaltyTypes.L2, alpha)
+>     print("Sklearn obtained coefficients: ", coef_sk)
 >     print("* objective:", objective_sk)
 > 
 > 
@@ -177,6 +172,7 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 > 
 > import tno.mpc.mpyc.secure_learning.test.plaintext_utils.plaintext_objective_functions as plain_obj
 > from tno.mpc.mpyc.secure_learning import (
+>     ClassWeightsTypes,
 >     ExponentiationTypes,
 >     Logistic,
 >     PenaltyTypes,
@@ -189,6 +185,7 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 > # Fixed random state for reproducibility
 > random_state = 3
 > tolerance = 1e-4
+> 
 > 
 > secnum = mpc.SecFxp(l=64, f=32)
 > 
@@ -203,6 +200,16 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 >     X_shared = [mpc.input(row, senders=0) for row in X_mpc]
 >     y_shared = mpc.input(y_mpc, senders=0)
 >     return X_shared, y_shared
+> 
+> 
+> def sklearn_class_weights_dict(y):
+>     n_class_1 = sum([((y_i + 1) / 2) for y_i in y])
+>     n_class_0 = len(y) - n_class_1
+> 
+>     w_0 = len(y) / (2 * n_class_0)
+>     w_1 = len(y) / (2 * n_class_1)
+> 
+>     return {-1: w_0, 1: w_1}
 > 
 > 
 > async def logistic_regression_example():
@@ -221,6 +228,7 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 >         n_clusters_per_class=1,
 >         random_state=random_state,
 >         shift=0,
+>         weights=[0.25, 0.75],
 >     )
 >     # Transform labels from {0, 1} to {-1, +1}.
 >     y = [-1 if x == 0 else 1 for x in y]
@@ -237,44 +245,54 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 >         exponentiation=ExponentiationTypes.APPROX,
 >         penalty=PenaltyTypes.L1,
 >         alpha=alpha,
+>         class_weights_type=ClassWeightsTypes.BALANCED,
 >     )
 >     async with mpc:
->         weights_approx = await model.compute_weights_mpc(
+>         coef_approx = await model.compute_coef_mpc(
 >             X_shared, y_shared, tolerance=tolerance
 >         )
 > 
+>     class_weights_dict = model.reveal_class_weights(y_shared)
+> 
 >     # Results of secure model (approximated logistic function)
 >     objective_approx = plain_obj.objective(
->         X, y, weights_approx, "logistic", PenaltyTypes.L1, alpha
+>         X, y, coef_approx, "logistic", PenaltyTypes.L1, alpha, class_weights_dict
 >     )
 >     print(
 >         "Securely obtained coefficients (approximated exponentiation):",
->         weights_approx,
+>         coef_approx,
 >     )
 >     print("* objective:", objective_approx)
-> 
+>     print("Class weights dictionary:", class_weights_dict)
 >     # Train secure model with exact logistic function (slower, more accurate)
 >     model = Logistic(
 >         solver_type=SolverTypes.GD,
 >         exponentiation=ExponentiationTypes.EXACT,
 >         penalty=PenaltyTypes.L1,
 >         alpha=alpha,
+>         class_weights_type=ClassWeightsTypes.BALANCED,
 >     )
 >     async with mpc:
->         weights_exact = await model.compute_weights_mpc(
+>         coef_exact = await model.compute_coef_mpc(
 >             X_shared, y_shared, tolerance=tolerance
 >         )
 > 
 >     # Results of secure model (exact logistic function)
 >     objective_exact = plain_obj.objective(
->         X, y, weights_exact, "logistic", PenaltyTypes.L1, alpha
+>         X,
+>         y,
+>         coef_exact,
+>         "logistic",
+>         PenaltyTypes.L1,
+>         alpha,
+>         class_weights_dict,
 >     )
 >     print(
 >         "Securely obtained coefficients (exact exponentiation):       ",
->         weights_exact,
+>         coef_exact,
 >     )
 >     print("* objective:", objective_exact)
-> 
+>     print("Class weights dictionary:", class_weights_dict)
 >     # Train plaintext model
 >     model_sk = LogisticRegressionSK(
 >         solver="saga",
@@ -282,15 +300,18 @@ Run these examples as `python example.py --no-log` to suppress the MPyC barrier 
 >         fit_intercept=True,
 >         penalty="l1",
 >         C=1 / (len(X) * alpha),
+>         class_weight="balanced",
 >     )
+> 
+>     class_weights_dict_sk = sklearn_class_weights_dict(y)
 >     model_sk.fit(X, y)
->     weights_sk = np.append([model_sk.intercept_], model_sk.coef_).tolist()
+>     coef_sk = np.append([model_sk.intercept_], model_sk.coef_).tolist()
 > 
 >     # Results of plaintest model
 >     objective_sk = plain_obj.objective(
->         X, y, weights_sk, "logistic", PenaltyTypes.L1, alpha
+>         X, y, coef_sk, "logistic", PenaltyTypes.L1, alpha
 >     )
->     print("Sklearn obtained coefficients:                               ", weights_sk)
+>     print("Sklearn obtained coefficients:                               ", coef_sk)
 >     print("* objective:", objective_sk)
 > 
 > 

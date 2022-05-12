@@ -159,7 +159,7 @@ class Model(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[False],
     ) -> Vector[SecureFixedPoint]:
         ...
@@ -169,7 +169,7 @@ class Model(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[True],
     ) -> List[Vector[SecureFixedPoint]]:
         ...
@@ -179,7 +179,7 @@ class Model(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
         ...
@@ -189,7 +189,7 @@ class Model(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
         """
@@ -197,7 +197,7 @@ class Model(ABC):
 
         :param X: Independent data.
         :param y: Dependent data.
-        :param weights: Weight vector.
+        :param coef_: Coefficient vector.
         :param grad_per_sample: Return gradient per sample if True, return aggregated gradient of all data if False.
         :return: Value(s) of gradient evaluated with the provided parameters.
         """
@@ -207,41 +207,43 @@ class Model(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Union[Vector[float], Vector[SecureFixedPoint]],
+        coef_: Union[Vector[float], Vector[SecureFixedPoint]],
     ) -> SecureFixedPoint:
         """
         Compute the model score.
 
         :param X: Test data.
         :param y: True value for $X$.
-        :param weights: Weight vector.
+        :param coef_: Coefficient vector.
         :return: Score of the model prediction.
         """
 
-    async def compute_weights_mpc(
+    async def compute_coef_mpc(
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
         tolerance: float = 1e-2,
         minibatch_size: Optional[int] = None,
-        weights_init: Optional[Vector[SecureFixedPoint]] = None,
+        coef_init: Optional[Vector[SecureFixedPoint]] = None,
         nr_maxiters: int = 100,
+        eta0: Optional[float] = None,
         print_progress: bool = False,
         secure_permutations: bool = False,
     ) -> Vector[float]:
         """
-        Train the model, compute and return the model weights.
+        Train the model, compute and return the model coefficients.
 
-        :param X: Training data
-        :param y: Target vector
-        :param tolerance: Threshold for convergence
-        :param minibatch_size: The size of the minibatch
-        :param weights_init: Initial weight vector to use
-        :param nr_maxiters: Threshold for the number of iterations
-        :param print_progress: Set to True to print progress every few iterations
-        :param secure_permutations: Set to True to perform matrix permutation securely
-        :raise SecureLearnTypeError: if the training or target data does not consist of secure numbers
-        :return: Weight vector
+        :param X: Training data.
+        :param y: Target vector.
+        :param tolerance: Threshold for convergence.
+        :param minibatch_size: The size of the minibatch.
+        :param coef_init: Initial coefficient vector to use.
+        :param nr_maxiters: Threshold for the number of iterations.
+        :param eta0: Initial learning rate.
+        :param print_progress: Set to True to print progress every few iterations.
+        :param secure_permutations: Set to True to perform matrix permutation securely.
+        :raise SecureLearnTypeError: if the training or target data does not consist of secure numbers.
+        :return: Coefficient vector.
         """
         start_time = time()
 
@@ -260,14 +262,15 @@ class Model(ABC):
             num_features=len(X[0]),
             tolerance=tolerance,
             minibatch_size=minibatch_size,
-            weights_init=weights_init,
+            coef_init=coef_init,
             sectype=stype,
+            eta0=eta0,
         )
 
         Xperm, yperm = X.copy(), y.copy()
 
-        # Compute weights
-        weights_mpc = self.solver._get_coefficients(
+        # Compute coefficients
+        coef_mpc = self.solver._get_coefficients(
             Xperm,
             yperm,
             n_maxiter=nr_maxiters,
@@ -276,7 +279,7 @@ class Model(ABC):
         )
 
         await mpc.barrier()
-        weights = [float(_) for _ in await mpc.output(weights_mpc)]
+        coef_ = [float(_) for _ in await mpc.output(coef_mpc)]
         timing = str(time() - start_time)
         logging.info("Timing MPC: " + timing + " seconds")
         logging.info(
@@ -286,7 +289,7 @@ class Model(ABC):
             + str(self.solver.rel_update_diff)
         )
 
-        return weights
+        return coef_
 
     async def cross_validate(
         self,
@@ -294,11 +297,14 @@ class Model(ABC):
         y: Vector[SecureFixedPoint],
         tolerance: float = 1e-2,
         minibatch_size: Optional[int] = None,
-        weights_init: Optional[Vector[SecureFixedPoint]] = None,
+        coef_init: Optional[Vector[SecureFixedPoint]] = None,
         nr_maxiters: int = 100,
+        eta0: Optional[float] = None,
         print_progress: bool = False,
         secure_permutations: bool = False,
         folds: Union[int, List[Tuple[List[int], List[int]]]] = 5,
+        random_state: Optional[int] = None,
+        shuffle: bool = False,
     ) -> Vector[float]:
         r"""
         Evaluate metrics over the model prediction using CV.
@@ -307,8 +313,9 @@ class Model(ABC):
         :param y: Target variable for X
         :param tolerance: Threshold for convergence
         :param minibatch_size: The size of the minibatch
-        :param weights_init: Initial weight vector to use
+        :param coef_init: Initial coefficient vector to use
         :param nr_maxiters: Threshold for the number of iterations
+        :param eta0: Initial learning rate
         :param print_progress: Set to True to print progress
         :param secure_permutations: Set to True to perform matrix permutation securely
         :param folds:
@@ -319,12 +326,16 @@ class Model(ABC):
             $([2, 3] , [0, 1, 4] )$ -> 1st fold, elements with indexes $[2, 3]$ are used in the train set, while elements with indexes  [0, 1, 4]  are used in the test set
             $([0, 1, 3] , [2, 4] )$ -> 2nd fold, elements with indexes $[0, 1, 3]$ are used in the train set, while elements with indexes  [2, 4]  are used in the test set
             $([0, 1, 2] , [3, 4] )$ -> 3rd fold, elements with indexes $[0, 1, 2]$ are used in the train set, while elements with indexes $[3, 4]$ are used in the test set
+        :param random_state: parameters that control the randomness of each fold. Pass a value to obtain the same fold each time for reproducibility purposes.
+        :param shuffle: Whether to shuffle the data or not before splitting into batches.
         :return: List of scores of the model prediction.
         """
         results = []
 
         if isinstance(folds, int):
-            kfold = KFold(n_splits=folds, shuffle=False)
+            if not shuffle and random_state is not None:
+                random_state = None
+            kfold = KFold(n_splits=folds, shuffle=shuffle, random_state=random_state)
             folds = list(kfold.split(X))  # type: ignore[arg-type]
 
         for train_index, test_index in folds:
@@ -335,18 +346,19 @@ class Model(ABC):
 
             async with mpc:
                 # Train the model
-                weights = await self.compute_weights_mpc(
+                coef_ = await self.compute_coef_mpc(
                     X_train,
                     y_train,
                     tolerance=tolerance,
                     minibatch_size=minibatch_size,
-                    weights_init=weights_init,
+                    coef_init=coef_init,
                     nr_maxiters=nr_maxiters,
+                    eta0=eta0,
                     print_progress=print_progress,
                     secure_permutations=secure_permutations,
                 )
 
-                results.append(await mpc.output(self.score(X_test, y_test, weights)))
+                results.append(await mpc.output(self.score(X_test, y_test, coef_)))
 
             self.solver.permutable_matrix = (
                 MatrixAugmenter()
@@ -357,14 +369,14 @@ class Model(ABC):
     @abstractmethod
     def predict(
         X: Matrix[SecureFixedPoint],
-        weights: Union[Vector[float], Vector[SecureFixedPoint]],
+        coef_: Union[Vector[float], Vector[SecureFixedPoint]],
         **kwargs: Any,
     ) -> List[SecureFixedPoint]:
         """
         Predicts target values for input data.
 
         :param X: Input data with all features
-        :param weights: Weight vector of the model
+        :param coef_: Coefficient vector of the model
         :param kwargs: Additional keyword arguments that are needed to predict
         :return: Target values
         """

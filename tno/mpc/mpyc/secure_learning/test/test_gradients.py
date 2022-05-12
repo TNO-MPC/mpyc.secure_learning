@@ -45,7 +45,7 @@ DATA_LIST = (
     ),
     list(list(0.01 * (i + _) for _ in range(-30, 31)) for i in range(-20, 21)),
 )
-WEIGHTS_LIST = (
+COEF_LIST = (
     list(_ / 10 for _ in range(-10, 11)),
     list(-2 * _ for _ in range(-20, 21)),
     list(_ / 60 for _ in range(-30, 31)),
@@ -63,18 +63,18 @@ CLASSIFICATION_LABELS_LIST = (
 
 
 PYTEST_MARK_PARAMETRIZE_REGRESSION = pytest.mark.parametrize(
-    "data, weights, labels",
+    "data, coef_, labels",
     list(
         zipped_input
-        for zipped_input in zip(DATA_LIST, WEIGHTS_LIST, REGRESSION_LABELS_LIST)
+        for zipped_input in zip(DATA_LIST, COEF_LIST, REGRESSION_LABELS_LIST)
     ),
 )
 
 PYTEST_MARK_PARAMETRIZE_CLASSIFICATION = pytest.mark.parametrize(
-    "data, weights, labels",
+    "data, coef_, labels",
     list(
         zipped_input
-        for zipped_input in zip(DATA_LIST, WEIGHTS_LIST, CLASSIFICATION_LABELS_LIST)
+        for zipped_input in zip(DATA_LIST, COEF_LIST, CLASSIFICATION_LABELS_LIST)
     ),
 )
 
@@ -98,7 +98,7 @@ class BaseTestGradient:
         self,
         gradient: GradientFunctions,
         data: Matrix[float],
-        weights: Vector[float],
+        coef_: Vector[float],
         labels: Vector[float],
     ) -> None:
         """
@@ -107,19 +107,19 @@ class BaseTestGradient:
 
         :param gradient: The gradient to be tested
         :param data: Independent input data
-        :param weights: Weights vector
+        :param coef_: Coefficients vector
         :param labels: Real labels corresponding to independent input data
         """
         plain_gradient = gradient.plain(
-            X=data, y=labels, weights=weights, grad_per_sample=True
+            X=data, y=labels, coef_=coef_, grad_per_sample=True
         )
 
         secure_data = mpyc_input(data, SECFXP)
-        secure_weights = mpyc_input(weights, SECFXP)
+        secure_coef_ = mpyc_input(coef_, SECFXP)
         secure_labels = mpyc_input(labels, SECFXP)
 
         secure_gradient = gradient.secure(
-            X=secure_data, y=secure_labels, weights=secure_weights, grad_per_sample=True
+            X=secure_data, y=secure_labels, coef_=secure_coef_, grad_per_sample=True
         )
 
         result = await mpyc_output(secure_gradient)
@@ -135,7 +135,7 @@ class BaseTestGradient:
         self,
         gradient: GradientFunctions,
         data: Matrix[float],
-        weights: Vector[float],
+        coef_: Vector[float],
         labels: Vector[float],
     ) -> None:
         """
@@ -144,21 +144,21 @@ class BaseTestGradient:
 
         :param gradient: The gradient to be tested
         :param data: Independent input data
-        :param weights: Weights vector
+        :param coef_: Coefficients vector
         :param labels: Real labels corresponding to independent input data
         """
         plain_gradient = gradient.plain(
-            X=data, y=labels, weights=weights, grad_per_sample=False
+            X=data, y=labels, coef_=coef_, grad_per_sample=False
         )
 
         secure_data = mpyc_input(data, SECFXP)
-        secure_weights = mpyc_input(weights, SECFXP)
+        secure_coef_ = mpyc_input(coef_, SECFXP)
         secure_labels = mpyc_input(labels, SECFXP)
 
         secure_gradient = gradient.secure(
             X=secure_data,
             y=secure_labels,
-            weights=secure_weights,
+            coef_=secure_coef_,
             grad_per_sample=False,
         )
 
@@ -171,7 +171,7 @@ class BaseTestGradient:
         self,
         gradient: GradientFunctions,
         data: Matrix[float],
-        weights: Vector[float],
+        coef_: Vector[float],
         labels: Vector[float],
     ) -> None:
         """
@@ -180,20 +180,20 @@ class BaseTestGradient:
 
         :param gradient: The gradient to be tested
         :param data: Independent input data
-        :param weights: Weights vector
+        :param coef_: Coefficients vector
         :param labels: Real labels corresponding to independent input data
         """
         secure_data = mpyc_input(data, SECFXP)
-        secure_weights = mpyc_input(weights, SECFXP)
+        secure_coef_ = mpyc_input(coef_, SECFXP)
         secure_labels = mpyc_input(labels, SECFXP)
 
         secure_gradient_per_sample = gradient.secure(
-            X=secure_data, y=secure_labels, weights=secure_weights, grad_per_sample=True
+            X=secure_data, y=secure_labels, coef_=secure_coef_, grad_per_sample=True
         )
         secure_gradient_per_batch = gradient.secure(
             X=secure_data,
             y=secure_labels,
-            weights=secure_weights,
+            coef_=secure_coef_,
             grad_per_sample=False,
         )
 

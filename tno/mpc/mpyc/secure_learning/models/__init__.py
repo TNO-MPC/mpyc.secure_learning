@@ -8,6 +8,7 @@ Initialization of the machine learning models
 from .secure_elastic_nets import ElasticNets as ElasticNets
 from .secure_lasso import Lasso as Lasso
 from .secure_linear import Linear as Linear
+from .secure_logistic import ClassWeightsTypes as ClassWeightsTypes
 from .secure_logistic import ExponentiationTypes as ExponentiationTypes
 from .secure_logistic import Logistic as Logistic
 from .secure_model import PenaltyTypes as PenaltyTypes

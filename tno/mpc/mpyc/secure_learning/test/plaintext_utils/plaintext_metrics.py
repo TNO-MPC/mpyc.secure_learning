@@ -6,7 +6,7 @@ from typing import Union
 import numpy as np
 import sklearn.metrics
 
-from tno.mpc.mpyc.secure_learning.utils import NumpyOrVector
+from tno.mpc.mpyc.secure_learning.utils import NumpyNumberArray, NumpyOrVector
 
 
 # Classification metrics
@@ -119,8 +119,8 @@ def mean_squared_model(y_real: NumpyOrVector) -> float:
     mean of squares of deviations from the mean.
 
     :param y_real: Input data
-    :return: Explained mean of squarws
+    :return: Explained mean of squares
     """
-    y = np.asarray(y_real)
+    y: NumpyNumberArray = np.asarray(y_real)
     dev_from_mean = y - y.mean()
-    return float(np.inner(dev_from_mean, dev_from_mean)) / len(y)  # type: ignore[no-untyped-call]
+    return float(np.inner(dev_from_mean, dev_from_mean)) / len(y)

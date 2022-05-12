@@ -10,7 +10,7 @@ from mpyc.runtime import mpc
 from tno.mpc.mpyc.secure_learning import metrics
 from tno.mpc.mpyc.secure_learning.test.mpyc_test_utils import mpyc_input, mpyc_output
 from tno.mpc.mpyc.secure_learning.test.plaintext_utils import plaintext_metrics
-from tno.mpc.mpyc.secure_learning.utils import Vector
+from tno.mpc.mpyc.secure_learning.utils import NumpyNumberArray, Vector
 
 pytestmark = [
     pytest.mark.asyncio,
@@ -30,12 +30,12 @@ TOLERABLE_ABS_ERROR_SQUARED = 4 * TOLERABLE_ABS_ERROR
 
 # test data
 classification_labels = (-1, 1)
-_classification_labels_real = np.concatenate(
+_classification_labels_real: NumpyNumberArray = np.concatenate(
     (np.repeat([1], 50), np.repeat([-1], 50))
-)  # type: ignore[no-untyped-call]
-_classification_labels_pred = np.concatenate(
+)
+_classification_labels_pred: NumpyNumberArray = np.concatenate(
     (np.repeat([1], 20), np.repeat([-1], 50), np.repeat([1], 30))
-)  # type: ignore[no-untyped-call]
+)
 classification_test_data = list(
     (real, pred)
     for (real, pred) in zip(
@@ -47,8 +47,8 @@ _regression_labels_real = np.arange(-10, 10 + 1e-6, step=1 / 10)
 nr_rlr = len(_regression_labels_real)
 regression_labels_deviations = np.concatenate(
     (
-        np.tile([-1, 3, 0, -0.1], nr_rlr // 8),  # type: ignore[no-untyped-call]
-        np.tile([-0.5, 0, 0, 1.4], nr_rlr + 7 // 8),  # type: ignore[no-untyped-call]
+        np.tile([-1, 3, 0, -0.1], nr_rlr // 8),
+        np.tile([-0.5, 0, 0, 1.4], nr_rlr + 7 // 8),
     )
 )[:nr_rlr]
 _regression_labels_pred = _regression_labels_real + regression_labels_deviations

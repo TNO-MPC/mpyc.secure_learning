@@ -99,7 +99,7 @@ def mat_vec_mult(
     vector: Union[Vector[SecNumTypesTV], Vector[float]],
     transpose: bool = False,
 ) -> Vector[SecNumTypesTV]:
-    """
+    r"""
     Compute matrix-vector multiplication.
 
     :param matrix: Matrix input with dimensions $m * r$.
@@ -150,7 +150,7 @@ def permute_matrix(matrix: SeqMatrix[SecNumTypesTV]) -> Matrix[SecNumTypesTV]:
 
     :param matrix: Matrix to be permuted
     :raise TypeError: Input is not a matrix
-    :return: Permutated matrix
+    :return: Permuted matrix
     """
     if not isinstance(matrix[0], Sequence):
         raise TypeError("Input is not a matrix.")
@@ -163,7 +163,6 @@ def permute_matrix(matrix: SeqMatrix[SecNumTypesTV]) -> Matrix[SecNumTypesTV]:
     for row in range(rows - 1):  # Knuth shuffling
         y_r = mpyc.random.random_unit_vector(stype, rows - row)
         X_r = mpc.matrix_prod([y_r], matrix[row:])[0]
-        # X_r = matr_sum((mpc_utils.mult_scalar_mul(y_r, X[row:], tr=True))
         d_r = mpc.matrix_prod([[v] for v in y_r], [mpc.vector_sub(matrix[row], X_r)])
         matrix[row] = X_r
         for _ in range(rows - row):
@@ -172,6 +171,7 @@ def permute_matrix(matrix: SeqMatrix[SecNumTypesTV]) -> Matrix[SecNumTypesTV]:
 
 
 @mpc_coro_ignore
+# flake8: noqa: C901
 async def mult_scalar_mul(
     scalars: Union[float, Vector[float], SecureFixedPoint, Vector[SecureFixedPoint]],
     matrix: Matrix[SecureFixedPoint],

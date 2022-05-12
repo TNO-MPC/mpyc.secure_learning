@@ -20,11 +20,11 @@ class DifferentiableRegularizer(ABC, BaseRegularizer):
     """
 
     @abstractmethod
-    def __call__(self, weights: List[SecureFixedPoint]) -> List[SecureFixedPoint]:
+    def __call__(self, coef_: List[SecureFixedPoint]) -> List[SecureFixedPoint]:
         """
         Evaluate the regularization gradient function.
 
-        :param weights: Weight vector
+        :param coef_: Coefficient vector
         :return: Value of regularization gradient function evaluated with the
             provided parameters.
         """
@@ -44,15 +44,15 @@ class L2Regularizer(DifferentiableRegularizer):
         """
         self.alpha = alpha
 
-    def __call__(self, weights: List[SecureFixedPoint]) -> List[SecureFixedPoint]:
+    def __call__(self, coef_: List[SecureFixedPoint]) -> List[SecureFixedPoint]:
         """
         Apply the initialized L2 regularization.
 
-        :param weights: Weight vector to be regularized.
+        :param coef_: Coefficient vector to be regularized.
         :return: Value of regularization gradient evaluated with the provided
             parameters.
         """
-        return [self.alpha * _ for _ in weights]
+        return [self.alpha * _ for _ in coef_]
 
 
 class NonDifferentiableRegularizer(ABC, BaseRegularizer):
@@ -63,12 +63,12 @@ class NonDifferentiableRegularizer(ABC, BaseRegularizer):
 
     @abstractmethod
     def __call__(
-        self, weights: List[SecureFixedPoint], eta: Union[float, SecureFixedPoint]
+        self, coef_: List[SecureFixedPoint], eta: Union[float, SecureFixedPoint]
     ) -> List[SecureFixedPoint]:
         """
         Apply the proximal function for this regularizer.
 
-        :param weights: Weight vector.
+        :param coef_: Coefficient vector.
         :param eta: Learning rate.
         :return: Value of proximal function evaluated with the provided
             parameters.
@@ -89,14 +89,14 @@ class L1Regularizer(NonDifferentiableRegularizer):
         self.alpha = alpha
 
     def __call__(
-        self, weights: List[SecureFixedPoint], eta: Union[float, SecureFixedPoint]
+        self, coef_: List[SecureFixedPoint], eta: Union[float, SecureFixedPoint]
     ) -> List[SecureFixedPoint]:
         r"""
         Apply the proximal function for the L1 regularizer.
 
         This proximal function is more commonly known as the soft-thresholding
         algorithm. The soft-thresholding algorithm pulls every element of
-        $w$ (weights vector) closer to zero. It does so in a component-wise
+        $w$ (coefficient vector) closer to zero. It does so in a component-wise
         fashion. More specifically:
         $$
         \textrm{new\_}w_i = \left\{ \begin{array}{cl}
@@ -109,27 +109,27 @@ class L1Regularizer(NonDifferentiableRegularizer):
         Here, $\nu$ is a value that depends on eta and the regularization
         constant $\alpha$.
 
-        :param weights: Weight vector.
+        :param coef_: Coefficient vector.
         :param eta: Learning rate.
         :return: Value of proximal function evaluated with the provided
             parameters.
         """
-        stype = type(weights[0])
+        stype = type(coef_[0])
 
         nu = eta * self.alpha
 
         # Find sign and absolute value of xi
         # Since mpc.sgn(stype(0)) = 0,
         # instead we compute 2*mpc.ge(stype(0), 0) - 1
-        signs = [2 * mpc.ge(_, stype(0)) - 1 for _ in weights]
-        abs_weights = mpc.schur_prod(signs, weights)
+        signs = [2 * mpc.ge(_, stype(0)) - 1 for _ in coef_]
+        abs_coef_ = mpc.schur_prod(signs, coef_)
 
         #       = xi - nu if       xi > nu
         # new_x = 0       if -nu < xi < nu
         #       = xi + nu if -nu < xi
-        xi_gtr_nu = [mpc.ge(_, nu) for _ in abs_weights]
-        new_weights = mpc.schur_prod(
+        xi_gtr_nu = [mpc.ge(_, nu) for _ in abs_coef_]
+        new_coef_ = mpc.schur_prod(
             xi_gtr_nu,
-            mpc.vector_sub(weights, mpc.scalar_mul(nu, signs)),
+            mpc.vector_sub(coef_, mpc.scalar_mul(nu, signs)),
         )
-        return new_weights
+        return new_coef_

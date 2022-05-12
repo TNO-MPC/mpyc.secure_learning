@@ -15,7 +15,7 @@ from tno.mpc.mpyc.secure_learning.utils import (
 def plain_linear_gradient(
     X: NumpyOrMatrix,
     y: NumpyOrVector,
-    weights: NumpyOrVector,
+    coef_: NumpyOrVector,
     grad_per_sample: bool,
 ) -> NumpyNumberArray:
     r"""
@@ -28,7 +28,7 @@ def plain_linear_gradient(
 
     :param X: Independent variables.
     :param y: Dependent variables.
-    :param weights: Current weights vector.
+    :param coef_: Current coefficient vector.
     :param grad_per_sample: Return a 2D-array with gradient per sample
         instead of aggregated (summed) 1D-gradient.
 
@@ -37,17 +37,15 @@ def plain_linear_gradient(
     """
     X = np.asarray(X)
     y = np.asarray(y)
-    weights = np.asarray(weights)
+    coef_ = np.asarray(coef_)
 
     resulting_array: NumpyNumberArray
     if not grad_per_sample:
-        resulting_array = 1 / X.shape[0] * np.dot(X.T, (np.dot(X, weights) - y))  # type: ignore[no-untyped-call]
+        resulting_array = 1 / X.shape[0] * np.dot(X.T, (np.dot(X, coef_) - y))
     else:
         resulting_array = (1 / X.shape[0]) * np.asarray(
             [
-                plain_linear_gradient(
-                    X[[i], :], y_sample, weights, grad_per_sample=False
-                )
+                plain_linear_gradient(X[[i], :], y_sample, coef_, grad_per_sample=False)
                 for (i, y_sample) in enumerate(y)
             ]
         )
@@ -55,7 +53,7 @@ def plain_linear_gradient(
 
 
 def transform_predicted_label(x: float) -> float:
-    """
+    r"""
     Transform labels that assume values in $[0, 1]$ to labels that assume
     values in $[-1, 1]$.
 
@@ -81,7 +79,7 @@ def logit(x: float) -> float:
 def plain_exact_logistic_gradient(
     X: NumpyOrMatrix,
     y: NumpyOrVector,
-    weights: NumpyOrVector,
+    coef_: NumpyOrVector,
     grad_per_sample: bool,
 ) -> NumpyNumberArray:
     r"""
@@ -99,7 +97,7 @@ def plain_exact_logistic_gradient(
 
     :param X: Independent variables.
     :param y: Dependent variables.
-    :param weights: Current weights vector.
+    :param coef_: Current coefficients vector.
     :param grad_per_sample: Return a 2D-array with gradient per sample
         instead of aggregated (summed) 1D-gradient.
     :return: Gradient for logistic regression as specified in above
@@ -107,7 +105,7 @@ def plain_exact_logistic_gradient(
     """
     X = np.asarray(X)
     y = np.asarray(y)
-    weights = np.asarray(weights)
+    coef_ = np.asarray(coef_)
 
     resulting_array: NumpyNumberArray
     if not grad_per_sample:
@@ -115,7 +113,7 @@ def plain_exact_logistic_gradient(
             [
                 x_sample
                 * (
-                    transform_predicted_label(logit(-np.dot(x_sample, weights)))  # type: ignore[no-untyped-call]
+                    transform_predicted_label(logit(-np.dot(x_sample, coef_)))
                     - y_sample
                 )
                 / 2
@@ -127,7 +125,7 @@ def plain_exact_logistic_gradient(
         resulting_array = (1 / X.shape[0]) * np.asarray(
             [
                 plain_exact_logistic_gradient(
-                    X[[i], :], [y_sample], weights, grad_per_sample=False
+                    X[[i], :], [y_sample], coef_, grad_per_sample=False
                 )
                 for (i, y_sample) in enumerate(y)
             ]
@@ -153,7 +151,7 @@ def approx_logit(x: float) -> float:
 def plain_approximate_logistic_gradient(
     X: NumpyOrMatrix,
     y: NumpyOrVector,
-    weights: NumpyOrVector,
+    coef_: NumpyOrVector,
     grad_per_sample: bool,
 ) -> NumpyNumberArray:
     r"""
@@ -171,7 +169,7 @@ def plain_approximate_logistic_gradient(
 
     :param X: Independent variables.
     :param y: Dependent variables.
-    :param weights: Current weights vector.
+    :param coef_: Current coefficients vector.
     :param grad_per_sample: Return a 2D-array with gradient per sample
         instead of aggregated (summed) 1D-gradient.
     :return: Gradient for logistic regression as specified in above
@@ -179,7 +177,7 @@ def plain_approximate_logistic_gradient(
     """
     X = np.asarray(X)
     y = np.asarray(y)
-    weights = np.asarray(weights)
+    coef_ = np.asarray(coef_)
 
     resulting_array: NumpyNumberArray
     if not grad_per_sample:
@@ -187,7 +185,7 @@ def plain_approximate_logistic_gradient(
             [
                 x_sample
                 * (
-                    transform_predicted_label(approx_logit(np.dot(x_sample, weights)))  # type: ignore[no-untyped-call]
+                    transform_predicted_label(approx_logit(np.dot(x_sample, coef_)))
                     - y_sample
                 )
                 / 2
@@ -199,7 +197,7 @@ def plain_approximate_logistic_gradient(
         resulting_array = (1 / X.shape[0]) * np.asarray(
             [
                 plain_approximate_logistic_gradient(
-                    X[[i], :], [y_sample], weights, grad_per_sample=False
+                    X[[i], :], [y_sample], coef_, grad_per_sample=False
                 )
                 for (i, y_sample) in enumerate(y)
             ]
@@ -208,26 +206,26 @@ def plain_approximate_logistic_gradient(
 
 
 def hinge_loss_grad(
-    data: NumpyNumberArray, weights: NumpyNumberArray, true_label: float
+    data: NumpyNumberArray, coef_: NumpyNumberArray, true_label: float
 ) -> NumpyNumberArray:
     """
     Compute the (degenerate) gradient of the hinge loss.
 
     :param data: Samples of independent variables.
-    :param weights: Current weights vector.
+    :param coef_: Current coefficients vector.
     :param true_label: True label of data samples.
     :return: (Degenerate) gradient of the hinge loss.
     """
-    pred = np.dot(data, weights)  # type: ignore[no-untyped-call]
+    pred = np.dot(data, coef_)
     if true_label * pred >= 1:
-        return np.zeros_like(weights)
+        return np.zeros_like(coef_)
     return -true_label * data
 
 
 def plain_svm_gradient(
     X: NumpyOrMatrix,
     y: NumpyOrVector,
-    weights: NumpyOrVector,
+    coef_: NumpyOrVector,
     grad_per_sample: bool,
 ) -> NumpyNumberArray:
     r"""
@@ -242,7 +240,7 @@ def plain_svm_gradient(
 
     :param X: Independent variables.
     :param y: Dependent variables.
-    :param weights: Current weights vector.
+    :param coef_: Current coefficients vector.
     :param grad_per_sample: Return a 2D-array with gradient per sample
         instead of aggregated (summed) 1D-gradient.
     :return: Approximate gradient for logistic regression as specified in
@@ -250,13 +248,13 @@ def plain_svm_gradient(
     """
     X = np.asarray(X)
     y = np.asarray(y)
-    weights = np.asarray(weights)
+    coef_ = np.asarray(coef_)
 
     resulting_array: NumpyNumberArray
     if not grad_per_sample:
         resulting_array = (1 / X.shape[0]) * np.sum(
             [
-                hinge_loss_grad(x_sample, weights, y_sample)
+                hinge_loss_grad(x_sample, coef_, y_sample)
                 for (x_sample, y_sample) in zip(X, y)
             ],
             axis=0,
@@ -264,9 +262,7 @@ def plain_svm_gradient(
     else:
         resulting_array = (1 / X.shape[0]) * np.asarray(
             [
-                plain_svm_gradient(
-                    X[[i], :], [y_sample], weights, grad_per_sample=False
-                )
+                plain_svm_gradient(X[[i], :], [y_sample], coef_, grad_per_sample=False)
                 for (i, y_sample) in enumerate(y)
             ]
         )

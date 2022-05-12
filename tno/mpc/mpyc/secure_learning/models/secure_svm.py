@@ -52,7 +52,7 @@ class SVM(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[False],
     ) -> Vector[SecureFixedPoint]:
         ...
@@ -62,7 +62,7 @@ class SVM(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[True],
     ) -> List[Vector[SecureFixedPoint]]:
         ...
@@ -72,7 +72,7 @@ class SVM(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
         ...
@@ -81,12 +81,12 @@ class SVM(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
         r"""
         This function calculates the gradient as if the input data consists
-        out of all data samples. That is, it does not incorporate weights for
+        out of all data samples. That is, it does not incorporate coefficients for
         gradients of partial input data.
 
         The gradient itself is given by
@@ -94,14 +94,14 @@ class SVM(Model):
 
         :param X: Input matrix
         :param y: Dependent variable
-        :param weights: Current weights vector
+        :param coef_: Current coefficients vector
         :param grad_per_sample: Return a list with gradient per sample instead
             of aggregated (summed) gradient
         :return: Gradient of SVM objective function.
         """
         stype = type(X[0][0])
 
-        sub_cost = mpc.schur_prod(y, mpc_utils.mat_vec_mult(X, weights))
+        sub_cost = mpc.schur_prod(y, mpc_utils.mat_vec_mult(X, coef_))
         max_sub_cost = [s < stype(1) for s in sub_cost]
         # For some reason, the vectorized GE is slower? Perhaps only
         # if tno.mpc.mpyc.secure_learning package is installed as editable?
@@ -124,23 +124,23 @@ class SVM(Model):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Union[Vector[float], Vector[SecureFixedPoint]],
+        coef_: Union[Vector[float], Vector[SecureFixedPoint]],
     ) -> SecureFixedPoint:
         """
         Compute the mean accuracy of the prediction.
 
         :param X: Test data.
         :param y: True label for $X$.
-        :param weights: Weight vector.
+        :param coef_: Coefficient vector.
         :return: Score of the model prediction.
         """
-        predicted_labels = self.predict(X, weights)
+        predicted_labels = self.predict(X, coef_)
         return accuracy_score(y, predicted_labels)
 
     @staticmethod
     def predict(
         X: Matrix[SecureFixedPoint],
-        weights: Union[Vector[float], Vector[SecureFixedPoint]],
+        coef_: Union[Vector[float], Vector[SecureFixedPoint]],
         **_kwargs: None
     ) -> Vector[SecureFixedPoint]:
         """
@@ -149,7 +149,7 @@ class SVM(Model):
         $+1$ is assigned.
 
         :param X: Input data with all features
-        :param weights: Weight vector of classification model
+        :param coef_: Coefficient vector of classification model
         :param _kwargs: Not used
         :return: Target labels of classification model
         """

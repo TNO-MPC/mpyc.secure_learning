@@ -1,5 +1,5 @@
 """
-Module for Cross Valdation (CV) following the GridSearchCV paradigm of sklearn.
+Module for Cross Validation (CV) following the GridSearchCV paradigm of sklearn.
 """
 import statistics
 from dataclasses import asdict, dataclass, field
@@ -11,10 +11,13 @@ from sklearn.model_selection import ParameterGrid
 
 from tno.mpc.mpyc.secure_learning.models import (
     ExponentiationTypes,
+    Lasso,
     Logistic,
     PenaltyTypes,
+    Ridge,
     SolverTypes,
 )
+from tno.mpc.mpyc.secure_learning.models.secure_logistic import ClassWeightsTypes
 from tno.mpc.mpyc.secure_learning.models.secure_model import Model
 from tno.mpc.mpyc.secure_learning.utils import Matrix, Vector
 
@@ -32,13 +35,17 @@ class ParameterCollection:
     alpha: List[float]
     tolerance: List[float]
     minibatch_size: List[Optional[int]]
-    weights_init: List[Optional[Vector[SecureFixedPoint]]]
+    coef_init: List[Optional[Vector[SecureFixedPoint]]]
     nr_maxiters: List[int]
+    class_weights: List[ClassWeightsTypes] = field(
+        default_factory=lambda: [ClassWeightsTypes.EQUAL]
+    )
     print_progress: List[bool] = field(default_factory=lambda: [False])
     secure_permutations: List[bool] = field(default_factory=lambda: [False])
     exponentiation: List[ExponentiationTypes] = field(
         default_factory=lambda: [ExponentiationTypes.NONE]
     )
+    eta0: List[Optional[float]] = field(default_factory=lambda: [None])
 
 
 @dataclass
@@ -52,11 +59,13 @@ class Parameters:
     alpha: float
     tolerance: float
     minibatch_size: Optional[int]
-    weights_init: Optional[Vector[SecureFixedPoint]]
+    coef_init: Optional[Vector[SecureFixedPoint]]
     nr_maxiters: int
+    class_weights: ClassWeightsTypes
     print_progress: bool
     secure_permutations: bool
     exponentiation: ExponentiationTypes
+    eta0: Optional[float]
 
 
 class GridCV:
@@ -70,6 +79,8 @@ class GridCV:
         parameter_collection: ParameterCollection,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
+        random_state: Optional[int] = None,
+        shuffle: bool = False,
     ) -> None:
         """
         Constructor method.
@@ -82,6 +93,8 @@ class GridCV:
         """
         super().__init__()
         self.model_type = model_type
+        self.random_state = random_state
+        self.shuffle = shuffle
         self._X = X
         self._y = y
         self._results: List[Vector[float]] = []
@@ -123,8 +136,16 @@ class GridCV:
             if issubclass(self.model_type, Logistic):
                 model: Model = self.model_type(
                     solver_type=parameters.solver_type,
-                    exponentiation=parameters.exponentiation,
                     penalty=parameters.penalty,
+                    exponentiation=parameters.exponentiation,
+                    class_weights_type=parameters.class_weights,
+                    alpha=parameters.alpha,
+                )
+            elif issubclass(self.model_type, Ridge) or issubclass(
+                self.model_type, Lasso
+            ):
+                model = self.model_type(
+                    solver_type=parameters.solver_type,
                     alpha=parameters.alpha,
                 )
             else:
@@ -139,11 +160,14 @@ class GridCV:
                     self._y,
                     tolerance=parameters.tolerance,
                     minibatch_size=parameters.minibatch_size,
-                    weights_init=parameters.weights_init,
+                    coef_init=parameters.coef_init,
                     nr_maxiters=parameters.nr_maxiters,
+                    eta0=parameters.eta0,
                     print_progress=parameters.print_progress,
                     secure_permutations=parameters.secure_permutations,
                     folds=folds,
+                    random_state=self.random_state,
+                    shuffle=self.shuffle,
                 )
                 results.append(result)
         self._results = results

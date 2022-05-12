@@ -57,13 +57,13 @@ class Solver(ABC):
         self.mu_x: Optional[Vector[SecureFixedPoint]] = None
         self.mu_y: Optional[SecureFixedPoint] = None
         self.yfactor: Optional[SecureFixedPoint] = None
-        self.eta0: Optional[SecureFixedPoint] = None
+        self.eta0: Optional[Union[float, SecureFixedPoint]] = None
         self.data_permutator: Optional[SecureDataPermutator] = None
         self.permutable_matrix: MatrixAugmenter[SecureFixedPoint] = MatrixAugmenter()
         self.tolerance = 0.0
-        self.weights_init: Optional[Vector[SecureFixedPoint]] = None
+        self.coef_init: Optional[Vector[SecureFixedPoint]] = None
         self._gradient_function: Optional[GradientFunction] = None
-        self.secret_shared_weights: Optional[Vector[SecureFixedPoint]] = None
+        self.secret_shared_coef_: Optional[Vector[SecureFixedPoint]] = None
         self.nr_epochs: Optional[int] = None
         self.rel_update_diff: Optional[float] = None
 
@@ -97,37 +97,37 @@ class Solver(ABC):
         return math.ceil(self.n / self.minibatch_size)
 
     @staticmethod
-    def _initialize_or_verify_initial_weights(
-        weights_init: Optional[Vector[SecureFixedPoint]],
+    def _initialize_or_verify_initial_coef_(
+        coef_init: Optional[Vector[SecureFixedPoint]],
         num_features: int,
         sectype: Type[SecureFixedPoint],
     ) -> Vector[SecureFixedPoint]:
         """
-        Parses and verifies initial weights vector (possibly
+        Parses and verifies initial coefficients vector (possibly
             including intercept).
 
-        Initializes weight vector if None was given.
-        Verifies that the initial weight vector is of the appropriate length.
+        Initializes coefficient vector if None was given.
+        Verifies that the initial coefficient vector is of the appropriate length.
 
-        :param weights_init: Initial weights vector. If None is passed, then
-            initialize the weight vector as a vector of zeros
+        :param coef_init: Initial coefficients vector. If None is passed, then
+            initialize the coefficient vector as a vector of zeros
         :param num_features: Number of features
-        :param sectype: Requested type of initial weights vector
-        :raise SecureLearnValueError: Provided weights vector
+        :param sectype: Requested type of initial coefficients vector
+        :raise SecureLearnValueError: Provided coefficients vector
             did not pass verification
-        :return: Verified initial weights vector
+        :return: Verified initial coefficients vector
         """
         # The intercept that is calculated for non-centered data is returned
-        # as the first element of the weights vector.
+        # as the first element of the coefficients vector.
         # Centered data has no intercept.
 
         n_corr = num_features + 1
 
-        if weights_init is None:
+        if coef_init is None:
             return [sectype(0) for _ in range(n_corr)]
-        if len(weights_init) == n_corr and isinstance(weights_init[0], sectype):
-            return weights_init
-        raise SecureLearnValueError("Inappropriate initial weights vector.")
+        if len(coef_init) == n_corr and isinstance(coef_init[0], sectype):
+            return coef_init
+        raise SecureLearnValueError("Inappropriate initial coefficients vector.")
 
     def init_solver(
         self,
@@ -135,23 +135,26 @@ class Solver(ABC):
         num_features: int,
         tolerance: float,
         sectype: Type[SecureFixedPoint],
-        weights_init: Optional[Vector[SecureFixedPoint]] = None,
+        coef_init: Optional[Vector[SecureFixedPoint]] = None,
         minibatch_size: Optional[int] = None,
+        eta0: Optional[float] = None,
     ) -> None:
         """
         Pass configuration to the solver.
 
         :param total_size: Number of samples in the training data.
         :param num_features: Number of features in the training data.
-        :param tolerance: Training stops if the l2 norm of two subsequent weight
+        :param tolerance: Training stops if the l2 norm of two subsequent coefficient
             vectors is less than the provided tolerance.
+        :param sectype: Requested type of initial coefficients vector.
+        :param coef_init: Initial coefficients vector. If None is passed, then
+            initialize the coefficient vector as a vector of zeros.
         :param minibatch_size: Size of minibatches. Defaults to full batch if
             None is passed.
-        :param weights_init: Initial weights vector. If None is passed, then
-            initialize the weight vector as a vector of zeros.
-        :param sectype: Requested type of initial weights vector.
+        :param eta0: Initial learning rate.
         """
         self.tolerance = tolerance
+        self.eta0 = eta0
         self.n = total_size
 
         if minibatch_size is None:
@@ -159,8 +162,8 @@ class Solver(ABC):
         else:
             self.minibatch_size = minibatch_size
 
-        self.weights_init = self._initialize_or_verify_initial_weights(
-            weights_init, num_features=num_features, sectype=sectype
+        self.coef_init = self._initialize_or_verify_initial_coef_(
+            coef_init, num_features=num_features, sectype=sectype
         )
 
     def set_gradient_function(
@@ -179,7 +182,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[False],
     ) -> Vector[SecureFixedPoint]:
         ...
@@ -189,7 +192,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: Literal[True],
     ) -> List[Vector[SecureFixedPoint]]:
         ...
@@ -199,7 +202,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
         ...
@@ -208,7 +211,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         grad_per_sample: bool,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
         """
@@ -216,7 +219,7 @@ class Solver(ABC):
 
         :param X: Independent data
         :param y: Dependent data
-        :param weights: Weight vector
+        :param coef_: Coefficient vector
         :param grad_per_sample: Return gradient per sample if True, return
             aggregated gradient of all data if False
         :raise MissingFunctionError: No gradient function was initialized
@@ -224,14 +227,14 @@ class Solver(ABC):
         """
         if self._gradient_function is None:
             raise MissingFunctionError("Gradient function has not been initialized.")
-        return self._gradient_function(X, y, weights, grad_per_sample=grad_per_sample)
+        return self._gradient_function(X, y, coef_, grad_per_sample=grad_per_sample)
 
     @overload
     def evaluate_gradient_function_for_minibatch(
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         nr_samples_total: int,
         grad_per_sample: Literal[False],
     ) -> Vector[SecureFixedPoint]:
@@ -242,7 +245,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         nr_samples_total: int,
         grad_per_sample: Literal[True],
     ) -> List[Vector[SecureFixedPoint]]:
@@ -253,7 +256,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         nr_samples_total: int,
         grad_per_sample: bool = ...,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
@@ -263,7 +266,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         nr_samples_total: int,
         grad_per_sample: bool = False,
     ) -> Union[Vector[SecureFixedPoint], List[Vector[SecureFixedPoint]]]:
@@ -272,7 +275,7 @@ class Solver(ABC):
 
         :param X: Independent data
         :param y: Dependent data
-        :param weights: Weight vector
+        :param coef_: Coefficient vector
         :param nr_samples_total: Number of samples
         :param grad_per_sample: Return gradient per sample if True, return
             aggregated gradient of all data if False
@@ -283,7 +286,7 @@ class Solver(ABC):
         return mpc_utils.scale_vector_or_matrix(
             len(X) / nr_samples_total,
             self._evaluate_gradient_function(
-                X, y, weights, grad_per_sample=grad_per_sample
+                X, y, coef_, grad_per_sample=grad_per_sample
             ),
         )
 
@@ -301,7 +304,7 @@ class Solver(ABC):
 
     def compute_aggregated_differentiable_regularizer_penalty(
         self,
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         nr_samples_minibatch: int,
         nr_samples_total: int,
     ) -> Vector[SecureFixedPoint]:
@@ -311,7 +314,7 @@ class Solver(ABC):
         ratio of samples that were used for computing the provided gradient
         over the number of samples in the complete training data.
 
-        :param weights: Unpenalized objective gradient vector
+        :param coef_: Unpenalized objective gradient vector
         :param nr_samples_minibatch: Number of samples that were used for
             computing the given gradient
         :param nr_samples_minibatch: Total number of samples in training data
@@ -320,17 +323,17 @@ class Solver(ABC):
             initialized
         :return: Penalized objective gradient vector
         """
-        stype = type(weights[0])
-        weights_0 = weights.copy()
+        stype = type(coef_[0])
+        coef_0 = coef_.copy()
 
-        weights_0[0] = stype(0, integral=False)
+        coef_0[0] = stype(0, integral=False)
 
-        aggregated_penalty = [stype(0, integral=False)] * len(weights)
+        aggregated_penalty = [stype(0, integral=False)] * len(coef_)
         for penalty_func in self._list_of_gradient_penalties:
             aggregated_penalty = mpc.vector_add(
                 aggregated_penalty,
                 mpc_utils.scale_vector_or_matrix(
-                    nr_samples_minibatch / nr_samples_total, penalty_func(weights_0)
+                    nr_samples_minibatch / nr_samples_total, penalty_func(coef_0)
                 ),
             )
         return aggregated_penalty
@@ -358,26 +361,26 @@ class Solver(ABC):
 
     def evaluate_proximal_function(
         self,
-        weights: Vector[SecureFixedPoint],
+        coef_: Vector[SecureFixedPoint],
         eta: Union[float, SecureFixedPoint],
     ) -> Vector[SecureFixedPoint]:
         """
         Evaluate the proximal function.
 
-        :param weights: Weight vector
+        :param coef_: Coefficient vector
         :param eta: Learning rate
         :raise MissingFunctionError: No proximal function was initialized
         :return: Value of proximal function evaluated with the provided
             parameters
         """
-        stype = type(weights[0])
-        weights_0 = weights.copy()
+        stype = type(coef_[0])
+        coef_0 = coef_.copy()
 
-        weights_0[0] = stype(0, integral=False)
+        coef_0[0] = stype(0, integral=False)
         if self._proximal_function is None:
             raise MissingFunctionError("Proximal function has not been initialized.")
-        proximal_result = self._proximal_function(weights_0, eta)
-        proximal_result[0] = weights[0]
+        proximal_result = self._proximal_function(coef_0, eta)
+        proximal_result[0] = coef_[0]
         return proximal_result
 
     @abstractmethod
@@ -401,7 +404,7 @@ class Solver(ABC):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights_old: Vector[SecureFixedPoint],
+        coef_old: Vector[SecureFixedPoint],
         epoch: int,
     ) -> Vector[SecureFixedPoint]:
         """
@@ -411,22 +414,22 @@ class Solver(ABC):
 
         :param X: Independent data
         :param y: Dependent data
-        :param weights_old: Current iterative solution
+        :param coef_old: Current iterative solution
         :param epoch: Number of times that the outer loop has completed
         :return: Updated iterative solution
         """
 
     @staticmethod
     def postprocessing(
-        weights_predict: Vector[SecureFixedPoint],
+        coef_predict: Vector[SecureFixedPoint],
     ) -> Vector[SecureFixedPoint]:
         """
-        Postprocess the predicted weights.
+        Postprocess the predicted coefficients.
 
-        :param weights_predict: Predicted weight vector
-        :return: Postprocessed weight vector
+        :param coef_predict: Predicted coefficient vector
+        :return: Postprocessed coefficient vector
         """
-        return weights_predict
+        return coef_predict
 
     def iterative_data_permutation(
         self,
@@ -464,19 +467,19 @@ class Solver(ABC):
         secure_permutations: bool,
     ) -> Vector[SecureFixedPoint]:
         """
-        Compute the model weights, or coefficients.
-        Only solver-independent calculations are explicitely defined (and called "outer loop").
+        Compute the model coefficients.
+        Only solver-independent calculations are explicitly defined (and called "outer loop").
 
         :param X: Training data
         :param y: Target vector
         :param n_maxiter: Maximum number of iterations before method stops and result is returned
         :param print_progress: Print progress (epoch number) to standard output
         :param secure_permutations: Perform matrix permutation securely
-        :return: vector with (secret-shared) weights computed by the solver
+        :return: vector with (secret-shared) coefficients computed by the solver
         """
-        assert n_maxiter > 0 and self.weights_init is not None
-        stype = type(self.weights_init[0])
-        await returnType(stype, len(self.weights_init))
+        assert n_maxiter > 0 and self.coef_init is not None
+        stype = type(self.coef_init[0])
+        await returnType(stype, len(self.coef_init))
 
         X = X.copy()
         y = y.copy()
@@ -496,10 +499,10 @@ class Solver(ABC):
             "y", mpc_utils.vector_to_matrix(y, transpose=True)
         )
 
-        # Initialize weights
-        weights_old = self.weights_init.copy()
-        weights_new = weights_old.copy()
-        weights_oldest = weights_new.copy()
+        # Initialize coefficients
+        coef_old = self.coef_init.copy()
+        coef_new = coef_old.copy()
+        coef_oldest = coef_new.copy()
 
         ###
         # Gradient descent outer loop (solver-independent)
@@ -523,31 +526,35 @@ class Solver(ABC):
             ###
             # Gradient descent inner loop (solver-dependent)
             ###
-            weights_new = self.inner_loop_calculation(X, y, weights_old, epoch=epoch)
-            weights_old = weights_new.copy()
+            coef_new = self.inner_loop_calculation(X, y, coef_old, epoch=epoch)
+            coef_old = coef_new.copy()
 
             # Check for convergence
             # Note that (update_diff <= self.tolerance) is True <=>
             # mpc.is_zero_public(update_diff >= self.tolerance) is True
             update_diff = mpc.in_prod(
-                mpc.vector_sub(weights_new, weights_oldest),
-                mpc.vector_sub(weights_new, weights_oldest),
+                mpc.vector_sub(coef_new, coef_oldest),
+                mpc.vector_sub(coef_new, coef_oldest),
             )
-            prev_norm = mpc.in_prod(weights_oldest, weights_oldest)
+            prev_norm = mpc.in_prod(coef_oldest, coef_oldest)
             has_converged = mpc.is_zero_public(
                 update_diff >= self.tolerance * prev_norm
             )
             if await has_converged:
                 break
-            weights_oldest = weights_new.copy()
+            coef_oldest = coef_new.copy()
+        else:
+            warnings.warn(
+                "ConvergenceWarning: The maximum number of iterations was reached which means the coef_ did not converge. Standardizing input data, adjusting step-size, lowering tolerance, or increasing the number of iterations may help."
+            )
 
         ###
         # Solver-specific post-processing
         ###
-        weights_predict = self.postprocessing(weights_new)
+        coef_predict = self.postprocessing(coef_new)
 
         # Metadata
-        self.secret_shared_weights = weights_predict
+        self.secret_shared_coef_ = coef_predict
         self.nr_epochs = epoch
         plain_update_diff = float(await mpc.output(update_diff))
         plain_prev_norm = float(await mpc.output(prev_norm))
@@ -556,7 +563,7 @@ class Solver(ABC):
         except ZeroDivisionError:
             warnings.warn(
                 "Update difference division by zero, indicating that the \
-                    weights vector is very small."
+                    coefficients vector is very small."
             )
             self.rel_update_diff = 0
-        return weights_predict
+        return coef_predict

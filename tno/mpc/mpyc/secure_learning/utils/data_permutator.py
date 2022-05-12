@@ -60,8 +60,8 @@ class SecureDataPermutator:
         """
         Generate common seed for future permutations.
         """
-        seed = await mpc.transfer(secrets.randbelow(2 ** 32))
-        self.seed = sum(seed) % 2 ** 32
+        seed = await mpc.transfer(secrets.randbelow(2**32))
+        self.seed = sum(seed) % 2**32
 
     @staticmethod
     def secure_data_permutation(

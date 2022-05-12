@@ -50,9 +50,12 @@ class GD(Solver):
         # permuting!
         y = y_init.copy()
 
-        self.eta0 = 1 / mpc.max(
-            [mpc.in_prod(X[_][1:], X[_][1:]) for _ in range(self.n)]
-        )
+        if self.eta0 is None:
+            self.eta0 = 1 / mpc.max(
+                [mpc.in_prod(X[_][1:], X[_][1:]) for _ in range(self.n)]
+            )
+        elif isinstance(self.eta0, (int, float)):
+            self.eta0 = stype(self.eta0, integral=False)
 
         return X, y
 
@@ -60,7 +63,7 @@ class GD(Solver):
         self,
         X: Matrix[SecureFixedPoint],
         y: Vector[SecureFixedPoint],
-        weights_old: Vector[SecureFixedPoint],
+        coef_old: Vector[SecureFixedPoint],
         epoch: int,
     ) -> Vector[SecureFixedPoint]:
         """
@@ -70,11 +73,11 @@ class GD(Solver):
 
         :param X: Independent data
         :param y: Dependent data
-        :param weights_old: Current iterative solution
+        :param coef_old: Current iterative solution
         :param epoch: Number of times that the outer loop has completed
         :return: Updated iterative solution
         """
-        weights_new = weights_old.copy()
+        coef_new = coef_old.copy()
         assert (
             self.minibatch_size is not None
             and self.n is not None
@@ -85,8 +88,8 @@ class GD(Solver):
             # Accelerated proximal gradient method, currently non-configurable by user
             accelerated = True
             if accelerated:
-                self.w_prevprev = self.w_prev or weights_old
-                self.w_prev = weights_old
+                self.w_prevprev = self.w_prev or coef_old
+                self.w_prev = coef_old
                 v = mpc.vector_add(
                     self.w_prev,
                     [
@@ -95,7 +98,7 @@ class GD(Solver):
                     ],
                 )
             else:
-                v = weights_old
+                v = coef_old
 
             # Compute gradient
             unpenalized_gradient_minibatch = (
@@ -123,7 +126,7 @@ class GD(Solver):
                 unpenalized_gradient_minibatch, gradient_penalty_minibatch
             )
 
-            eta = self.eta0 / (epoch + 1) ** 0.1
+            eta = self.eta0
             # Convergence guaranteed for eta = O(epoch ** p) where -1 <= p < -.5
 
             x_k = mpc.vector_sub(v, mpc.scalar_mul(eta, penalized_gradient_minibatch))
@@ -131,9 +134,9 @@ class GD(Solver):
             # Evaluate proxy func; add penalty due to non-differentiable
             # regularizers
             if self.has_proximal_function:
-                weights_new = self.evaluate_proximal_function(x_k, eta)
+                coef_new = self.evaluate_proximal_function(x_k, eta)
             else:
-                weights_new = x_k
+                coef_new = x_k
 
-            weights_old = weights_new.copy()
-        return weights_new
+            coef_old = coef_new.copy()
+        return coef_new

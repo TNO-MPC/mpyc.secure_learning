@@ -65,7 +65,7 @@ def l2_regularizer(x: Iterable[float], alpha: float) -> List[float]:
 
 
 # test data
-W_LIST = (
+C_LIST = (
     list(range(-20, 21)),
     [_ / 2 for _ in range(-20, 21)],
     [_ / 10 for _ in range(-20, 21)],
@@ -75,7 +75,7 @@ RATE_LIST = [0, 0.1, 1, 10]
 ALPHA_LIST = [0, 0.1, 1, 10]
 
 
-@pytest.mark.parametrize("weights", W_LIST)
+@pytest.mark.parametrize("coef_", C_LIST)
 @pytest.mark.parametrize("alpha", ALPHA_LIST)
 class TestDifferentiableRegularizer:
     """
@@ -84,28 +84,28 @@ class TestDifferentiableRegularizer:
 
     @staticmethod
     async def test_l2_regularizer(
-        weights: List[float],
+        coef_: List[float],
         alpha: float,
     ) -> None:
         """
         Test for validating the accuracy of the secure L2 regularizer
         implementation.
 
-        :param weights: Weights vector
+        :param coef_: Coefficients vector
         :param alpha: Regularization parameter
         """
-        secure_weights = mpyc_input(weights, SECFXP)
+        secure_coef_ = mpyc_input(coef_, SECFXP)
         secure_l2_regularizer = L2Regularizer(alpha)
 
-        plain_l2_regularized_weights = l2_regularizer(weights, alpha=alpha)
-        secure_l2_regularized_weights = secure_l2_regularizer(secure_weights)
-        result = await mpyc_output(secure_l2_regularized_weights)
+        plain_l2_regularized_coef_ = l2_regularizer(coef_, alpha=alpha)
+        secure_l2_regularized_coef_ = secure_l2_regularizer(secure_coef_)
+        result = await mpyc_output(secure_l2_regularized_coef_)
         assert result == pytest.approx(
-            plain_l2_regularized_weights, abs=TOLERABLE_ABS_ERROR
+            plain_l2_regularized_coef_, abs=TOLERABLE_ABS_ERROR
         )
 
 
-@pytest.mark.parametrize("weights", W_LIST)
+@pytest.mark.parametrize("coef_", C_LIST)
 @pytest.mark.parametrize("rate", RATE_LIST)
 @pytest.mark.parametrize("alpha", ALPHA_LIST)
 class TestNonDifferentiableRegularizer:
@@ -115,7 +115,7 @@ class TestNonDifferentiableRegularizer:
 
     @staticmethod
     async def test_l1_regularizer(
-        weights: List[float],
+        coef_: List[float],
         rate: float,
         alpha: float,
     ) -> None:
@@ -123,19 +123,19 @@ class TestNonDifferentiableRegularizer:
         Test for validating the accuracy of the secure L1 regularizer
         implementation.
 
-        :param weights: Weights vector.
+        :param coef_: Coefficients vector.
         :param rate: Learning rate of the solver
         :param alpha: Regularization parameter
         """
-        secure_weights = mpyc_input(weights, SECFXP)
+        secure_coef_ = mpyc_input(coef_, SECFXP)
         secure_rate = mpyc_input(rate, SECFXP)
         secure_l1_regularizer = L1Regularizer(alpha)
 
-        plain_l1_regularized_weights = l1_regularizer(weights, rate=rate, alpha=alpha)
-        secure_l1_regularized_weights = secure_l1_regularizer(
-            secure_weights, eta=secure_rate
+        plain_l1_regularized_coef_ = l1_regularizer(coef_, rate=rate, alpha=alpha)
+        secure_l1_regularized_coef_ = secure_l1_regularizer(
+            secure_coef_, eta=secure_rate
         )
-        result = await mpyc_output(secure_l1_regularized_weights)
+        result = await mpyc_output(secure_l1_regularized_coef_)
         assert result == pytest.approx(
-            plain_l1_regularized_weights, abs=TOLERABLE_ABS_ERROR
+            plain_l1_regularized_coef_, abs=TOLERABLE_ABS_ERROR
         )
